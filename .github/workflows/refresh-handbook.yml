@@ -16,8 +16,12 @@ on:
     - cron: "23 11 * * *"
   workflow_dispatch:
     inputs:
+      force:
+        description: "Regenerate even if the web page matches the snapshot (e.g. after a template or code change)"
+        type: boolean
+        default: false
       publish:
-        description: "Commit straight to the default branch instead of opening a pull request"
+        description: "Commit straight to the default branch and release, instead of opening a pull request"
         type: boolean
         default: false
 
@@ -55,15 +59,25 @@ jobs:
         env:
           # Bot-protection header; a secret so it stays out of the public repo.
           SCRAPER_HEADERS: ${{ secrets.SCRAPER_HEADERS }}
+          FORCE: ${{ inputs.force || false }}
         run: |
           set -uo pipefail
           if [ -z "$SCRAPER_HEADERS" ]; then
             echo "::error::The SCRAPER_HEADERS secret is not set; the site answers 403 without it."
             exit 1
           fi
+          if [ "$FORCE" = "true" ]; then
+            # Clean slate, so nothing from the committed outputs can survive into
+            # the build. (Not on normal runs: missing outputs defeat the skip.)
+            rm -f output/graduate-handbook.docx output/graduate-handbook.pdf
+            echo "Forced regeneration requested." >> "$GITHUB_STEP_SUMMARY"
+            args=()
+          else
+            args=(--skip-if-unchanged)
+          fi
           # Actions runs steps with -e; capture the status instead of dying on it.
           status=0
-          docker-compose run --rm generate --skip-if-unchanged || status=$?
+          docker-compose run --rm generate "${args[@]}" || status=$?
           case "$status" in
             0)
               echo "changed=1" >> "$GITHUB_OUTPUT"
@@ -94,6 +108,7 @@ jobs:
       - name: Publish directly to the default branch
         if: steps.rebuild.outputs.changed == '1' && inputs.publish
         env:
+          GH_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
@@ -105,7 +120,10 @@ jobs:
             -m "Published directly by a manual refresh; the test suite ran first." \
             -m "$(git diff --cached --stat -- snapshot output)"
           git push origin "HEAD:$DEFAULT_BRANCH"
-          echo "Pushed to $DEFAULT_BRANCH; the release workflow will publish it." >> "$GITHUB_STEP_SUMMARY"
+          # A push made with GITHUB_TOKEN does not trigger the release
+          # workflow's push trigger; a dispatch is the one event it may start.
+          gh workflow run release.yml --ref "$DEFAULT_BRANCH"
+          echo "Pushed to $DEFAULT_BRANCH and started the release workflow." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open or update the refresh pull request
         if: steps.rebuild.outputs.changed == '1' && !inputs.publish
