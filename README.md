@@ -7,7 +7,7 @@ Generates the ORFE Ph.D. Handbook (DOCX and PDF) from the web version at
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `refresh-handbook.yml` | Daily 11:23 UTC, or manual | Scrapes the page. If its content differs from `snapshot/handbook.md`, rebuilds `output/`, runs the tests, and opens (or updates) the `chore/refresh-handbook` pull request. A manual run with **publish** commits straight to `main`. |
+| `refresh-handbook.yml` | Daily 11:23 UTC, or manual | Scrapes the page. If its content differs from `snapshot/handbook.md`, rebuilds `output/`, runs the tests, and opens (or updates) the `chore/refresh-handbook` pull request. Manual runs can tick **force** (rebuild even if the page is unchanged, e.g. after a template or code change) and **publish** (commit straight to `main` and release instead of opening a PR). |
 | `release.yml` | Push to `main` that changes `output/` | Publishes the PDF and DOCX as a GitHub release. |
 | `ci.yml` | Push / pull request | Runs the test suite in Docker. |
 
