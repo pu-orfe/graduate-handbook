@@ -2,9 +2,9 @@
 
 year: 2026
 chair: Amir Ali Ahmadi
-chair_image_sha256: f56144029f6d93dd27cc856a255e0c43d9d3ed5dea5f862d1d28b59e323db116
+chair_image: https://orfe.princeton.edu/sites/g/files/toruqf1286/files/styles/3x4_750w_1000h/public/2023-06/ahmadi_portrait.jpg?itok=Q51MkZ_h
 dgs: Ludovic Tangpi
-dgs_image_sha256: 38bb5d19cdf0d9464abca6fa2c9d886f915e0d4a8c7928b8490ce80708f46744
+dgs_image: https://orfe.princeton.edu/sites/g/files/toruqf1286/files/styles/3x4_750w_1000h/public/2022-07/picture-5412-1551326737.jpg?itok=RlvJLKPU
 
 Welcome to the Department of Operations Research & Financial Engineering (ORFE). We wish you tremendous academic success over the next few years. At Princeton, you will be among the best, brightest and most creative talents of your generation. ORFE is a small, yet very interdisciplinary department. We trust that here you will thrive as you deepen and widen your academic interests and become experts in your respective fields of research.
 ORFE is also a very friendly department where Undergraduate and Graduate students, as well as Faculty and Staff interact in a supportive atmosphere. We hope that you will easily integrate into the community. Please do introduce yourself to fellow students and to faculty, and do not hesitate to reach out to us if you have any questions or concerns. We look forward to engaging with you over the next few years.

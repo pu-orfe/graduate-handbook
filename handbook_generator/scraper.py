@@ -87,13 +87,15 @@ class HandbookScraper:
             img_path = os.path.join(self.media_dir, f"{key}_scraped.jpeg")
             if not self._download_image(img_url, img_path):
                 raise ValueError(f"Could not download the {label}'s photo from {img_url}.")
-            people[key] = (name, img_path)
+            people[key] = (name, img_path, img_url)
 
         return {
             "chair_name": people["chair"][0],
             "dgs_name": people["dgs"][0],
             "chair_img_path": people["chair"][1],
             "dgs_img_path": people["dgs"][1],
+            "chair_img_url": people["chair"][2],
+            "dgs_img_url": people["dgs"][2],
             "warnings": warnings,
         }
 

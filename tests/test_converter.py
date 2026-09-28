@@ -71,3 +71,4 @@ def test_libreoffice_silent_failure_is_an_error(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError):
         DocumentConverter(str(src), str(target)).convert()
     assert not target.exists()
+

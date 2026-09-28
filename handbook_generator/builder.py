@@ -242,53 +242,91 @@ class HandbookBuilder:
 
         self._apply_page_breaks(doc)
 
+    # Major sections start on a new page; everything else flows.
+    SECTION_BREAKS = (
+        "ph.d. program requirements",
+        "other regulations",
+        "miscellaneous information",
+        "important contacts",
+    )
+
     def _apply_page_breaks(self, doc):
-        """Forces page breaks before specific headings or text paragraphs by setting
-        page_break_before on the first empty paragraph of the spacer sequence preceding them.
-        This ensures spacing is pushed to the top of the next page instead of the bottom of the previous page."""
-        targets = [
-            "ph.d. program requirements",
-            "1.1 research & thesis adviser",
-            "research & thesis adviser",
-            "the qualifying exams shall not exceed 90 minutes",
-            "appointed by the department chair",
-            "if requested by either the student’s thesis adviser",
-            "other regulations",
-            "changes in course status",
-            "auditing courses",
-            "holiday, vacation, and travel",
-            "3. miscellaneous information",
-            "miscellaneous information",
-            "4. important contacts",
-            "important contacts"
-        ]
+        """Paginates the body with layout rules instead of fixed positions.
+
+        The template was paginated by hand in Word: runs of blank paragraphs
+        push each section onto the next page, and earlier versions of this
+        method added page breaks before specific mid-section sentences. Both
+        depend on Word's exact line breaking. Any other renderer (LibreOffice
+        in CI), or any web edit that changes a paragraph's length, shifts the
+        text by a line or two, and those lines land alone on a new page.
+
+        So, from the first section onward: blank spacer runs are collapsed to
+        a single blank line, the four major sections start on a new page,
+        headings stay with the text that follows them, and widow/orphan
+        control is on. The cover, contents and welcome pages are left exactly
+        as the template lays them out.
+        """
+        paragraphs = doc.paragraphs
+        body_start = next(
+            (i for i, p in enumerate(paragraphs) if self._section_break_target(p.text)),
+            None,
+        )
+        if body_start is None:
+            print("Warning: no major section heading found; leaving pagination as is.")
+            return
+
+        # Blank spacer runs directly before a section break are removed
+        # outright (the break does their job); elsewhere one blank line stays.
+        previous_blank = False
+        for idx in range(body_start - 1, -1, -1):
+            p = paragraphs[idx]
+            if p.text.strip() or self._has_graphics(p):
+                break
+            p._element.getparent().remove(p._element)
+        for p in paragraphs[body_start:]:
+            if p._element.getparent() is None:
+                continue
+            blank = not p.text.strip() and not self._has_graphics(p)
+            if blank and previous_blank:
+                p._element.getparent().remove(p._element)
+                continue
+            previous_blank = blank
 
         paragraphs = doc.paragraphs
-        n = len(paragraphs)
-        for idx, p in enumerate(paragraphs):
-            text = p.text.strip().lower()
-            if not text:
-                continue
-            
-            matches_target = False
-            for t in targets:
-                if text.startswith(t):
-                    matches_target = True
-                    break
-            
-            if matches_target:
-                first_empty_idx = None
-                curr = idx - 1
-                while curr >= 0 and not paragraphs[curr].text.strip():
-                    first_empty_idx = curr
-                    curr -= 1
-                
-                if first_empty_idx is not None and first_empty_idx > 0:
-                    paragraphs[first_empty_idx].paragraph_format.page_break_before = True
-                    print(f"Applied page_break_before to empty spacer paragraph P{first_empty_idx:03d} before target '{p.text[:40]}'")
-                else:
-                    p.paragraph_format.page_break_before = True
-                    print(f"Applied page_break_before directly to target paragraph P{idx:03d}: '{p.text[:40]}'")
+        body_start = next(i for i, p in enumerate(paragraphs) if self._section_break_target(p.text))
+        body = paragraphs[body_start:]
+        for idx, p in enumerate(body):
+            fmt = p.paragraph_format
+            fmt.page_break_before = None
+            fmt.widow_control = True
+            if self._section_break_target(p.text):
+                fmt.page_break_before = True
+                # A blank line left just before the heading would open the page.
+                prev = body[idx - 1] if idx > 0 else None
+                if prev is not None and not prev.text.strip() and not self._has_graphics(prev):
+                    prev._element.getparent().remove(prev._element)
+                print(f"Section starts on a new page: '{p.text.strip()[:40]}'")
+            if self._is_heading(p):
+                fmt.keep_with_next = True
+
+    def _section_break_target(self, text):
+        text = re.sub(r"^\s*\d+\.?\s*", "", text.strip().lower())
+        return any(text.startswith(t) for t in self.SECTION_BREAKS)
+
+    @staticmethod
+    def _has_graphics(p):
+        return bool(p._p.xpath('.//*[local-name()="drawing" or local-name()="pict"]'))
+
+    @staticmethod
+    def _is_heading(p):
+        """Headings are Heading-styled or all-bold short lines, never long prose."""
+        text = p.text.strip()
+        if not text or len(text) > 120:
+            return False
+        if p.style is not None and p.style.name.startswith("Heading"):
+            return True
+        runs = [r for r in p.runs if r.text.strip()]
+        return bool(runs) and all(r.bold for r in runs)
 
     def _update_textboxes(self, doc, year):
         tb_count = 0

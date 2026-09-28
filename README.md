@@ -44,7 +44,15 @@ manual refresh (or the next web change) rebuilds from it.
 
 PDFs committed by CI are rendered by LibreOffice, using Carlito, Caladea and
 Liberation fonts in place of Calibri, Cambria, Arial and Times New Roman.
-Pagination is close to Word's but not identical.
+
+**Pagination** is by rule, not position: the four major sections start on a new
+page, headings stay with the text after them, and widow/orphan control is on.
+The template's blank-line spacers (which only worked with Word's exact line
+breaks) are collapsed in the body. The **contents page numbers** are then read
+back from the rendered PDF and written into the contents list, and the PDF is
+rendered again. The numbers in the DOCX therefore match the CI PDF; opened in
+Word, the DOCX may paginate slightly differently. `tests/test_layout.py` checks
+both in the container against a saved copy of the page (`tests/fixtures/handbook.html`).
 
 ## Scraper headers (not in this repository)
 
