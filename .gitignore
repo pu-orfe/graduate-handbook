@@ -1,0 +1,10 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+.DS_Store
+*_generated.docx
+*_generated.pdf
+# Downloaded on every run; their hashes are recorded in snapshot/handbook.md.
+media/*_scraped.*
+~$*.docx

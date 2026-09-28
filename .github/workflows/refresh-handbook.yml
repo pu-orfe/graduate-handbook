@@ -1,0 +1,162 @@
+name: Refresh Handbook From Web
+
+# Scrapes https://orfe.princeton.edu/graduate/handbook and, when its content no
+# longer matches snapshot/handbook.md, regenerates the DOCX and PDF and opens a
+# pull request with them.
+#
+# A pull request rather than a direct push: the web page is the source, but the
+# PDF is what students are handed, so a reflowed section or a scrape that
+# misread the page should be seen by a person first. snapshot/handbook.md in the
+# diff shows exactly what changed on the web, line by line.
+
+on:
+  schedule:
+    # Daily; the handbook changes a few times a year. Off the hour to avoid
+    # GitHub's top-of-hour scheduling congestion.
+    - cron: "23 11 * * *"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Commit straight to the default branch instead of opening a pull request"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write # keepalive: re-enable this workflow so the schedule survives quiet months
+
+concurrency:
+  group: refresh-handbook
+  cancel-in-progress: false
+
+env:
+  BRANCH: chore/refresh-handbook
+
+jobs:
+  refresh:
+    name: Rebuild and propose changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Provide docker-compose
+        run: |
+          if ! command -v docker-compose >/dev/null; then
+            printf '#!/bin/sh\nexec docker compose "$@"\n' | sudo tee /usr/local/bin/docker-compose >/dev/null
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+
+      - name: Build image
+        run: docker-compose build
+
+      - name: Scrape and rebuild if the web page changed
+        id: rebuild
+        env:
+          # Bot-protection header; a secret so it stays out of the public repo.
+          SCRAPER_HEADERS: ${{ secrets.SCRAPER_HEADERS }}
+        run: |
+          set -uo pipefail
+          if [ -z "$SCRAPER_HEADERS" ]; then
+            echo "::error::The SCRAPER_HEADERS secret is not set; the site answers 403 without it."
+            exit 1
+          fi
+          # Actions runs steps with -e; capture the status instead of dying on it.
+          status=0
+          docker-compose run --rm generate --skip-if-unchanged || status=$?
+          case "$status" in
+            0)
+              echo "changed=1" >> "$GITHUB_OUTPUT"
+              {
+                echo "### Web page has changed"
+                echo
+                echo '```diff'
+                git diff --no-color -- snapshot | head -200
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            3)
+              echo "changed=0" >> "$GITHUB_OUTPUT"
+              echo "Web page matches the committed snapshot." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::Generator failed with exit code $status (scrape blocked, page restructured, or build error)."
+              exit "$status"
+              ;;
+          esac
+
+      # A PR opened with GITHUB_TOKEN does not trigger other workflows, so CI
+      # would never run on it. Run the suite here before proposing anything.
+      - name: Run the test suite
+        if: steps.rebuild.outputs.changed == '1'
+        run: docker-compose run --rm test-suite
+
+      - name: Publish directly to the default branch
+        if: steps.rebuild.outputs.changed == '1' && inputs.publish
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add snapshot output
+          git commit \
+            -m "Refresh handbook from the web page" \
+            -m "Published directly by a manual refresh; the test suite ran first." \
+            -m "$(git diff --cached --stat -- snapshot output)"
+          git push origin "HEAD:$DEFAULT_BRANCH"
+          echo "Pushed to $DEFAULT_BRANCH; the release workflow will publish it." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update the refresh pull request
+        if: steps.rebuild.outputs.changed == '1' && !inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          {
+            echo "The ORFE graduate handbook web page no longer matches \`snapshot/handbook.md\`,"
+            echo "so the DOCX and PDF in \`output/\` were regenerated."
+            echo
+            echo "**What changed on the web** (from the snapshot; see the Files tab for all of it):"
+            echo
+            echo '```diff'
+            git diff --no-color -U1 -- snapshot | tail -n +5 | head -150
+            echo '```'
+            echo
+            echo "Open \`output/graduate-handbook.pdf\` in the Files tab to check the layout"
+            echo "before merging. Merging publishes a release with both files."
+            echo
+            echo "The test suite ran against this rebuild before the pull request was"
+            echo "opened, because a pull request created with GITHUB_TOKEN does not"
+            echo "trigger CI."
+            echo
+            echo "_Opened automatically by \`.github/workflows/refresh-handbook.yml\`._"
+          } > "$RUNNER_TEMP/pr-body.md"
+
+          git checkout -B "$BRANCH"
+          git add snapshot output
+          git commit -m "Refresh handbook from the web page" -m "$(git diff --cached --stat -- snapshot output)"
+          git push --force origin "$BRANCH"
+
+          EXISTING="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --body-file "$RUNNER_TEMP/pr-body.md"
+            echo "Updated pull request #$EXISTING." >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh pr create --base "$DEFAULT_BRANCH" --head "$BRANCH" \
+              --title "Refresh handbook from the web page" \
+              --body-file "$RUNNER_TEMP/pr-body.md"
+          fi
+
+      # GitHub disables scheduled workflows after 60 days without repository
+      # activity. The handbook can go longer than that unchanged, which would
+      # silently stop the refresh; re-enabling resets the clock.
+      - name: Keep the schedule alive
+        if: always() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/refresh-handbook.yml/enable"

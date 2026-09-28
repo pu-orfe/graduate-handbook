@@ -1,0 +1,49 @@
+name: Release Handbook
+
+# Publishes output/ as a GitHub release whenever it changes on main, so the
+# latest handbook always downloads from
+#   https://github.com/<repo>/releases/latest/download/graduate-handbook.pdf
+
+on:
+  push:
+    branches: [main]
+    paths: ["output/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-handbook
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify outputs
+        run: |
+          set -euo pipefail
+          test -s output/graduate-handbook.docx
+          head -c 5 output/graduate-handbook.pdf | grep -q '%PDF-'
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="handbook-$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          YEAR="$(sed -n 's/^year: //p' snapshot/handbook.md)"
+          {
+            echo "ORFE Ph.D. Handbook ${YEAR}, generated from https://orfe.princeton.edu/graduate/handbook"
+            echo
+            echo "Commit: ${GITHUB_SHA}"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" \
+            output/graduate-handbook.pdf output/graduate-handbook.docx \
+            --title "Ph.D. Handbook ${YEAR} ($(date -u +%Y-%m-%d))" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --latest
+          echo "Released $TAG" >> "$GITHUB_STEP_SUMMARY"

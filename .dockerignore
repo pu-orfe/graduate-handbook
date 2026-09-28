@@ -1,0 +1,9 @@
+.venv
+.env
+.git
+.github
+.pytest_cache
+**/__pycache__
+output
+snapshot
+*_generated.*

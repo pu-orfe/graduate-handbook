@@ -1,0 +1,18 @@
+services:
+  # Test suite, including a real LibreOffice conversion (REQUIRE_SOFFICE=1 in the image).
+  test-suite:
+    build: .
+    image: graduate-handbook:local
+    command: pytest -v
+
+  # Scrapes the live page and writes output/ and snapshot/ back to the working copy.
+  # Extra CLI flags pass through: docker-compose run --rm generate --skip-if-unchanged
+  generate:
+    build: .
+    image: graduate-handbook:local
+    entrypoint: ["python", "-m", "handbook_generator.cli"]
+    environment:
+      - SCRAPER_HEADERS
+    volumes:
+      - ./output:/app/output
+      - ./snapshot:/app/snapshot

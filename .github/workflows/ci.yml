@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test suite (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Runner images ship Compose v2 as a plugin only; keep `docker-compose`
+      # working so CI invokes it exactly as the local scripts do.
+      - name: Provide docker-compose
+        run: |
+          if ! command -v docker-compose >/dev/null; then
+            printf '#!/bin/sh\nexec docker compose "$@"\n' | sudo tee /usr/local/bin/docker-compose >/dev/null
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+          docker-compose version
+
+      - name: Build image
+        run: docker-compose build test-suite
+
+      - name: Run tests
+        run: docker-compose run --rm test-suite
