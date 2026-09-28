@@ -26,6 +26,36 @@ def parse_headers(value):
     return headers
 
 
+CF_EMAIL_PATH = "/cdn-cgi/l/email-protection"
+
+
+def _cf_decode(encoded):
+    """Decodes a Cloudflare-obfuscated address (hex; first byte XORs the rest)."""
+    key = int(encoded[:2], 16)
+    return "".join(chr(int(encoded[i:i + 2], 16) ^ key) for i in range(2, len(encoded), 2))
+
+
+def decode_cloudflare_emails(soup):
+    """Restores addresses Cloudflare hid from scrapers.
+
+    The site serves "[email protected]" placeholders to non-browser clients,
+    with the real address encoded in the element or link; left alone, the
+    placeholder is what the handbook prints. Returns the number decoded.
+    """
+    count = 0
+    for el in soup.select("[data-cfemail]"):
+        el.replace_with(_cf_decode(el["data-cfemail"]))
+        count += 1
+    for a in soup.find_all("a", href=True):
+        if CF_EMAIL_PATH in a["href"] and "#" in a["href"]:
+            address = _cf_decode(a["href"].split("#", 1)[1])
+            a["href"] = "mailto:" + address
+            if "email" in a.get_text() and "protected" in a.get_text():
+                a.string = address.split("?", 1)[0]
+            count += 1
+    return count
+
+
 class HandbookScraper:
     def __init__(self, url="https://orfe.princeton.edu/graduate/handbook", media_dir="media"):
         self.url = url
@@ -43,7 +73,9 @@ class HandbookScraper:
         """Fetches the webpage HTML and returns a BeautifulSoup object."""
         response = requests.get(self.url, headers=self.headers, timeout=30)
         response.raise_for_status()
-        return BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(response.text, "html.parser")
+        decode_cloudflare_emails(soup)
+        return soup
 
     CHAIR_ROLE = re.compile(r"\b(?:Department\s+)?Chair\b", re.IGNORECASE)
     DGS_ROLE = re.compile(r"\bDirector of Graduate Studies\b", re.IGNORECASE)

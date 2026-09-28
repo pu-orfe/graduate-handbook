@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 from handbook_generator.builder import HandbookBuilder
 from handbook_generator.converter import DocumentConverter, render_pdf
+from handbook_generator.scraper import decode_cloudflare_emails
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURE = os.path.join(ROOT, "tests", "fixtures", "handbook.html")
@@ -44,9 +45,10 @@ MIN_LINES = 8
 
 
 @pytest.fixture(scope="module")
-def pages(tmp_path_factory):
+def pdf(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("layout")
     soup = BeautifulSoup(open(FIXTURE, encoding="utf-8").read(), "html.parser")
+    decode_cloudflare_emails(soup)
     body = soup.find_all("div", class_="field--name-field-ps-body")
     body = max(body, key=lambda d: len(d.text))
     data = {
@@ -59,8 +61,12 @@ def pages(tmp_path_factory):
     pdf_path = str(tmp / "handbook.pdf")
     HandbookBuilder(TEMPLATE, docx_path, MEDIA).build(data, body, year="2026")
     render_pdf(docx_path, pdf_path)
+    return pdf_path
 
-    text = subprocess.run(["pdftotext", "-layout", pdf_path, "-"], check=True,
+
+@pytest.fixture(scope="module")
+def pages(pdf):
+    text = subprocess.run(["pdftotext", "-layout", pdf, "-"], check=True,
                           capture_output=True, text=True).stdout
     result = [[line for line in page.splitlines() if line.strip()] for page in text.split("\f")]
     while result and not result[-1]:
@@ -110,3 +116,23 @@ def test_contents_page_numbers_match(pages):
         assert entry, f"no contents entry for {title!r}"
         listed = int(re.search(r"(\d+)\s*$", entry).group(1))
         assert listed == starts[number], f"contents lists {title!r} on page {listed}, it starts on {starts[number]}"
+
+
+def test_body_pages_have_a_top_margin(pdf):
+    """The template's zero top margin once put text against the top edge."""
+    bbox = subprocess.run(["pdftotext", "-bbox", pdf, "-"], check=True,
+                          capture_output=True, text=True).stdout
+    tops, page = {}, 0
+    for line in bbox.splitlines():
+        if "<page " in line:
+            page += 1
+        elif "<word " in line and page not in tops:
+            tops[page] = float(re.search(r'yMin="([\d.]+)"', line).group(1)) / 72
+    tight = {p: round(t, 2) for p, t in tops.items() if p > 1 and t < 0.9}
+    assert tops and not tight, f"pages whose text starts under 0.9in from the top: {tight}"
+
+
+def test_page_numbers_continue_after_cover(pages):
+    # The cover is its own section; LibreOffice would restart numbering at 1.
+    for number in (2, 3, len(pages)):
+        assert pages[number - 1][-1].strip() == str(number)

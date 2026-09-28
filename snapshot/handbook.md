@@ -141,7 +141,7 @@ Please review all ORFE Travel and Expense requirements prior to booking supporte
 - Academic job panel (early Fall semester)
 - Department Holiday Party (December)
 - Seminars: Statistics (Mondays), ORFE colloquium (Tuesdays), Probability (alternate Wednesdays), Financial Mathematics (alternate Wednesdays), Optimization (Thursdays).
-- Graduate Student Affairs Office is 120 - Sherrerd Hall, extension 8-4018, [email protected]
+- Graduate Student Affairs Office is 120 - Sherrerd Hall, extension 8-4018, klupinac@princeton.edu
 - E-mail is how department correspondence is transmitted. PLEASE check it regularly.
 - Payroll checks are put in your mailbox on the last working day of the month. Go Green! Sign up for direct deposit via TigerHub.
 - Mailboxes are located in 221 - Sherrerd Hall. Please check your mailbox. The door to the mailroom is to be kept locked at all times.

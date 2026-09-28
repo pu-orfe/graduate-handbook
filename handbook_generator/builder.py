@@ -10,10 +10,13 @@ from docx.oxml.ns import qn
 from bs4 import NavigableString, Tag, BeautifulSoup
 
 class HandbookBuilder:
-    def __init__(self, template_path, output_path, media_dir="media"):
+    def __init__(self, template_path, output_path, media_dir="media",
+                 base_url="https://orfe.princeton.edu/graduate/handbook"):
         self.template_path = template_path
         self.output_path = output_path
         self.media_dir = media_dir
+        # Relative links on the page resolve against this.
+        self.base_url = base_url
 
     def build(self, scraper_data, body_content, year=None):
         """Builds the docx document using the scraped data and content."""
@@ -211,6 +214,7 @@ class HandbookBuilder:
                         for r in list(lead_p.runs):
                             if r not in runs_to_keep:
                                 lead_p._p.remove(r._r)
+                        self._remove_hyperlinks(lead_p)
                         self._process_text_runs_in_place(lead_p, wb_block, base_format=base_format, color_override=color_override, clear_all=False)
                     else:
                         # Update normal paragraph text runs ONLY if there are differences
@@ -241,6 +245,7 @@ class HandbookBuilder:
                 current_insert_p = new_para
 
         self._apply_page_breaks(doc)
+        self._apply_page_margins(doc)
 
     # Major sections start on a new page; everything else flows.
     SECTION_BREAKS = (
@@ -308,6 +313,60 @@ class HandbookBuilder:
                 print(f"Section starts on a new page: '{p.text.strip()[:40]}'")
             if self._is_heading(p):
                 fmt.keep_with_next = True
+
+    # The template sets top and bottom margins to zero and fakes a margin with
+    # blank lines at the top of each page. The cover is designed around that
+    # (its title box is positioned from the margin), so it keeps the template's
+    # page setup in a section of its own; everything from the welcome letter on
+    # gets a real margin, since the blank lines are gone once pagination is by rule.
+    PAGE_MARGIN = Inches(1)
+    WELCOME_HEADING = "message from the chair"
+
+    def _apply_page_margins(self, doc):
+        body_sectpr = doc.sections[-1]._sectPr
+        welcome = next(
+            (p for p in doc.paragraphs if p.text.strip().lower().startswith(self.WELCOME_HEADING)),
+            None,
+        )
+        if welcome is not None and len(doc.sections) == 1:
+            # Blank lines that only pushed the welcome letter onto page 2.
+            prev = welcome._p.getprevious()
+            while prev is not None and prev.tag == qn("w:p") and not self._element_text(prev).strip() \
+                    and not prev.xpath('.//*[local-name()="drawing" or local-name()="pict"]'):
+                earlier = prev.getprevious()
+                prev.getparent().remove(prev)
+                prev = earlier
+            # An empty paragraph carrying the cover section's properties ends
+            # the cover section; the welcome letter starts the next on a new page.
+            cover_sectpr = copy.deepcopy(body_sectpr)
+            breaker = OxmlElement("w:p")
+            ppr = OxmlElement("w:pPr")
+            ppr.append(cover_sectpr)
+            breaker.append(ppr)
+            welcome._p.addprevious(breaker)
+            # Page 2 onward shows page numbers; "different first page" applies
+            # only to the cover section now.
+            for title_pg in body_sectpr.findall(qn("w:titlePg")):
+                body_sectpr.remove(title_pg)
+            welcome.paragraph_format.page_break_before = None
+            # LibreOffice restarts page numbers at a new section; the cover is
+            # one page, so the body continues at 2 (and printed page numbers
+            # equal physical pages, which the contents check relies on).
+            pg_num = body_sectpr.find(qn("w:pgNumType"))
+            if pg_num is None:
+                pg_num = OxmlElement("w:pgNumType")
+                body_sectpr.find(qn("w:pgMar")).addnext(pg_num)
+            pg_num.set(qn("w:start"), "2")
+
+        body_section = doc.sections[-1]
+        if not body_section.top_margin or body_section.top_margin < self.PAGE_MARGIN:
+            body_section.top_margin = self.PAGE_MARGIN
+        if not body_section.bottom_margin or body_section.bottom_margin < self.PAGE_MARGIN:
+            body_section.bottom_margin = self.PAGE_MARGIN
+
+    @staticmethod
+    def _element_text(element):
+        return "".join(t.text or "" for t in element.iter(qn("w:t")))
 
     def _section_break_target(self, text):
         text = re.sub(r"^\s*\d+\.?\s*", "", text.strip().lower())
@@ -378,6 +437,9 @@ class HandbookBuilder:
         if clear_all:
             for r in list(doc_para.runs):
                 doc_para._p.remove(r._r)
+            # Hyperlinks are not runs; left behind, the template's old link
+            # text ends up glued to the front of the new web text.
+            self._remove_hyperlinks(doc_para)
         
         if base_format is None:
             base_format = {}
@@ -415,10 +477,13 @@ class HandbookBuilder:
                     for child in node.children:
                         process_node(child, bold=bold, italic=True)
                 elif node.name == 'a':
+                    url = self._link_url(node.get('href', ''))
                     for child in node.children:
                         if isinstance(child, NavigableString):
                             run = doc_para.add_run(str(child))
                             apply_formatting(run, bold=bold, italic=italic, underline=True, color=RGBColor(0, 0, 255))
+                            if url:
+                                self._wrap_in_hyperlink(doc_para, run, url)
                         else:
                             process_node(child, bold=bold, italic=italic)
                 elif node.name == 'br':
@@ -429,6 +494,28 @@ class HandbookBuilder:
 
         for child in html_element.children:
             process_node(child)
+
+    def _link_url(self, href):
+        """Absolute URL for a web link, or None for in-page anchors."""
+        from urllib.parse import urljoin
+        href = (href or "").strip()
+        if not href or href.startswith("#"):
+            return None
+        return urljoin(self.base_url, href)
+
+    @staticmethod
+    def _wrap_in_hyperlink(doc_para, run, url):
+        from docx.opc.constants import RELATIONSHIP_TYPE as RT
+        rel_id = doc_para.part.relate_to(url, RT.HYPERLINK, is_external=True)
+        link = OxmlElement("w:hyperlink")
+        link.set(qn("r:id"), rel_id)
+        run._r.addprevious(link)
+        link.append(run._r)
+
+    @staticmethod
+    def _remove_hyperlinks(doc_para):
+        for link in doc_para._p.findall(qn("w:hyperlink")):
+            doc_para._p.remove(link)
 
     @staticmethod
     def _flatten_html_blocks(container):
