@@ -121,40 +121,6 @@ def check_roles(soup, body, scraper, **_):
     return findings
 
 
-def check_contacts(body, **_):
-    """Contact entries should be complete and consistent with each other."""
-    findings = []
-    entries = contact_entries(body)
-    with_phone = [e for e in entries if e["phones"] or re.search(r"\bextension\b", e["text"], re.I)]
-    # Only a gap when most entries have a number: the list's own convention.
-    if len(with_phone) >= max(2, len(entries) // 2):
-        for e in entries:
-            if e not in with_phone and e["name"]:
-                findings.append(Finding(
-                    check="contacts",
-                    title=f"Contact without a phone number: {e['role']}",
-                    detail=(f"Every other Important Contacts entry has a phone number, but "
-                            f"**{e['role']}** does not."),
-                    evidence=[e["text"]],
-                    key=f"nophone|{_norm_title(e['role'])}|{_norm_name(e['name'])}",
-                ))
-    by_phone = {}
-    for e in entries:
-        for phone in e["phones"]:
-            by_phone.setdefault(phone, []).append(e)
-    for phone, users in by_phone.items():
-        names = {_norm_name(e["name"]) for e in users if e["name"]}
-        if len(names) > 1:
-            findings.append(Finding(
-                check="contacts",
-                title=f"Same phone number listed for different people: {phone}",
-                detail="Two Important Contacts entries share a number; one is likely stale.",
-                evidence=[e["text"] for e in users],
-                key=f"sharedphone|{phone}|{'|'.join(sorted(names))}",
-            ))
-    return findings
-
-
 # --- courses ------------------------------------------------------------------
 
 def check_course_titles(body, **_):
@@ -343,7 +309,7 @@ def _link_status(session, url, headers):
     return status
 
 
-CHECKS = [check_roles, check_contacts, check_course_titles, check_counted_lists,
+CHECKS = [check_roles, check_course_titles, check_counted_lists,
           check_dates, check_structure, check_links]
 
 
@@ -351,7 +317,9 @@ def run_checks(soup, body, scraper, year=None, toc_titles=None, skip=()):
     """Runs every check; returns {"checks_run": [...], "checks_failed": {...}, "findings": [...]}."""
     context = dict(soup=soup, body=body, scraper=scraper, year=year, toc_titles=toc_titles,
                    base_url=getattr(scraper, "url", None), headers=getattr(scraper, "headers", None))
-    result = {"checks_run": [], "checks_failed": {}, "findings": []}
+    # checks_available lets the reporter close issues from checks since retired.
+    result = {"checks_available": [c.__name__.removeprefix("check_") for c in CHECKS],
+              "checks_run": [], "checks_failed": {}, "findings": []}
     for check in CHECKS:
         name = check.__name__.removeprefix("check_")
         if name in skip:

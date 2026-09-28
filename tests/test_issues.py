@@ -49,6 +49,26 @@ def test_gone_finding_from_a_check_that_did_not_run_is_kept():
     assert p.close == [] and [i["number"] for i in p.kept] == [3]
 
 
+def test_issue_from_a_retired_check_is_closed():
+    # The contacts (phone number) check was removed; its open issue must not linger.
+    r = dict(result([]), checks_available=["roles", "links"])
+    p = plan(r, [issue(5, A)])  # A was raised by "contacts"
+    assert [i["number"] for i in p.retire] == [5] and p.close == [] and p.kept == []
+
+
+def test_older_findings_files_without_available_list_retire_nothing():
+    p = plan(result([], ran=("links",)), [issue(5, A)])
+    assert p.retire == [] and [i["number"] for i in p.kept] == [5]
+
+
+def test_retire_closes_as_not_planned():
+    s = FakeSession([])
+    GitHub("o/r", "t", session=s).apply(plan(dict(result([]), checks_available=["roles"]), [issue(5, A)]))
+    patch = next(j for m, path, j, _ in s.calls if m == "PATCH" and path == "/issues/5")
+    assert patch == {"state": "closed", "state_reason": "not_planned"}
+    assert ("POST", "/issues/5/comments") in [(m, path) for m, path, _, _ in s.calls]
+
+
 def test_returning_finding_reopens_auto_resolved_issue():
     p = plan(result([A]), [issue(1, A, state="closed", labels=(LABEL, AUTO_RESOLVED))])
     assert [i["number"] for i, _ in p.reopen] == [1]
