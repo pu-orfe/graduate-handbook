@@ -135,3 +135,24 @@ def test_refuses_to_overwrite_template(workspace, monkeypatch):
     before = (workspace["root"] / template).read_bytes()
     assert run(monkeypatch, "--output-docx", template) == 1
     assert (workspace["root"] / template).read_bytes() == before
+
+
+def test_contact_parse_failure_exits_nonzero(workspace, monkeypatch):
+    def fail(self, soup):
+        raise ValueError("Could not find the Chair on the page")
+
+    monkeypatch.setattr(cli.HandbookScraper, "parse_contacts_and_download_images", fail)
+    assert run(monkeypatch) == 1
+    assert not (workspace["root"] / "snapshot" / "handbook.md").exists()
+
+
+def test_page_disagreement_is_reported(workspace, monkeypatch, capsys):
+    original = cli.HandbookScraper.parse_contacts_and_download_images
+
+    def with_warning(self, soup):
+        return dict(original(self, soup), warnings=["The page disagrees about the Chair"])
+
+    monkeypatch.setattr(cli.HandbookScraper, "parse_contacts_and_download_images", with_warning)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert run(monkeypatch) == 0
+    assert "::warning::The page disagrees about the Chair" in capsys.readouterr().out
