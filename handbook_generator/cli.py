@@ -68,7 +68,14 @@ def main():
         sys.exit(1)
 
     print("Step 2: Parsing contact details and images...")
-    scraper_data = scraper.parse_contacts_and_download_images(soup)
+    try:
+        scraper_data = scraper.parse_contacts_and_download_images(soup)
+    except Exception as e:
+        print(f"Error parsing contacts: {e}")
+        sys.exit(1)
+    for warning in scraper_data.get("warnings", []):
+        # Annotations surface on the run page in Actions; plain text elsewhere.
+        print(f"::warning::{warning}" if os.environ.get("GITHUB_ACTIONS") else f"Warning: {warning}")
     print(f"Parsed Chair: {scraper_data['chair_name']}")
     print(f"Parsed DGS: {scraper_data['dgs_name']}")
 

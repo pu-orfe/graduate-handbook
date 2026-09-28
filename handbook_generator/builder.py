@@ -47,8 +47,8 @@ class HandbookBuilder:
 
     # --- IN-PLACE SYNC METHODS ---
     def _sync_document_in_place(self, doc, scraper_data, body_content, year):
-        chair_name = scraper_data.get("chair_name", "Mete Soner")
-        dgs_name = scraper_data.get("dgs_name", "Ludovic Tangpi")
+        chair_name = scraper_data["chair_name"]
+        dgs_name = scraper_data["dgs_name"]
         chair_img = scraper_data.get("chair_img_path")
         dgs_img = scraper_data.get("dgs_img_path")
 
