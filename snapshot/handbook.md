@@ -151,9 +151,9 @@ Please review all ORFE Travel and Expense requirements prior to booking supporte
 - Graduate Lounge, the open area located on the second floor provides a meeting space for graduate students and faculty. This is a common area shared by all. This space is not to be used for office hours.
 ## Important Contacts
 - Chair, Professor Amir Ali Ahmadi
-- Director of Graduate Studies, Professor Ludovic Tangpi, 609-258-4558
-- Department Manager, Connie Brown, 609-258-5422
-- Graduate Program Administrator, Kimberly Lupinacci, 609-258-4018
+- Director of Graduate Studies, Professor Ludovic Tangpi
+- Department Manager, Connie Brown
+- Graduate Program Administrator, Kimberly Lupinacci
 - McCosh Health Center Emergency, 609-258-3139
 - Public Safety Non-Emergency 609-258-1000 Emergency 9-1-1
 Welcome to the department, we wish you success as you pursue your graduate degree!
