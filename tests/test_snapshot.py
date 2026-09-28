@@ -76,3 +76,15 @@ def test_snapshot_differs_and_write(tmp_path):
     assert path.read_text() == "a\n"
     assert snapshot_differs(str(path), "a\n") is False
     assert snapshot_differs(str(path), "b\n") is True
+
+
+def test_snapshot_uses_image_url_not_bytes(tmp_path):
+    # Same URL, different bytes (another rendition) must not register a change.
+    a = dict(_data(tmp_path, chair_bytes=b"rendition one"), chair_img_url="https://x/ahmadi.jpg?itok=1")
+    first = build_snapshot(a, _body(), "2026")
+    b = dict(_data(tmp_path, chair_bytes=b"rendition two"), chair_img_url="https://x/ahmadi.jpg?itok=1")
+    assert build_snapshot(b, _body(), "2026") == first
+    assert "chair_image: https://x/ahmadi.jpg?itok=1" in first.splitlines()
+
+    c = dict(a, chair_img_url="https://x/new_portrait.jpg?itok=2")
+    assert build_snapshot(c, _body(), "2026") != first

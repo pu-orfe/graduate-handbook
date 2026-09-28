@@ -93,3 +93,22 @@ class DocumentConverter:
                 return p
 
         return None
+
+
+def render_pdf(docx_path, pdf_path, max_passes=3):
+    """Converts to PDF, then corrects the contents page numbers until stable.
+
+    Numbers only change on the contents page, whose length stays the same, so
+    the second pass normally confirms the first; a document that keeps
+    changing is an error rather than a PDF with wrong numbers.
+    """
+    from handbook_generator.toc import update_toc_numbers
+
+    converter = DocumentConverter(docx_path, pdf_path)
+    converter.convert()
+    for _ in range(max_passes):
+        if not update_toc_numbers(docx_path, pdf_path):
+            return True
+        print("Contents page numbers corrected; rendering again...")
+        converter.convert()
+    raise RuntimeError(f"Contents page numbers did not settle after {max_passes} passes")

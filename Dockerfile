@@ -1,11 +1,12 @@
 FROM python:3.11-slim
 
-# LibreOffice renders the PDF. The template uses Calibri (body default), Cambria,
+# LibreOffice renders the PDF; poppler-utils is for the layout tests. The template uses Calibri (body default), Cambria,
 # Arial and Times New Roman; Carlito, Caladea and Liberation are their metric-
 # compatible stand-ins. Without them body text falls back to DejaVu Sans, which
 # is wider and pushes the PDF from 15 pages to 20.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer \
+    poppler-utils \
     default-jre-headless \
     fonts-liberation \
     fonts-crosextra-carlito \

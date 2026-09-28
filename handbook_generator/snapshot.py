@@ -17,6 +17,21 @@ HEADER = (
 )
 
 
+def _image_line(key, scraper_data):
+    """Identifies a photo by its URL when known, else by a hash of the file.
+
+    Not by the downloaded bytes: the site serves different renditions of the
+    same image to different clients (a CI runner got a 71 KB JPEG where a Mac
+    got 45 KB from the identical URL), which would look like a new photo on
+    every run. Drupal gives a replaced image a new URL, so the URL is the
+    reliable signal.
+    """
+    url = scraper_data.get(f"{key}_img_url")
+    if url:
+        return f"{key}_image: {url}"
+    return f"{key}_image_sha256: {_sha256(scraper_data.get(f'{key}_img_path'))}"
+
+
 def _sha256(path):
     if not path or not os.path.exists(path):
         return "missing"
@@ -54,9 +69,9 @@ def build_snapshot(scraper_data, body_content, year):
         "",
         f"year: {year}",
         f"chair: {scraper_data.get('chair_name')}",
-        f"chair_image_sha256: {_sha256(scraper_data.get('chair_img_path'))}",
+        _image_line("chair", scraper_data),
         f"dgs: {scraper_data.get('dgs_name')}",
-        f"dgs_image_sha256: {_sha256(scraper_data.get('dgs_img_path'))}",
+        _image_line("dgs", scraper_data),
         "",
     ]
     # Same flattening the builder syncs against, so the snapshot changes

@@ -5,7 +5,7 @@ import argparse
 from datetime import datetime
 from handbook_generator.scraper import HandbookScraper
 from handbook_generator.builder import HandbookBuilder
-from handbook_generator.converter import DocumentConverter
+from handbook_generator.converter import DocumentConverter, render_pdf
 from handbook_generator.snapshot import build_snapshot, snapshot_differs, write_snapshot
 
 # Exit code for --skip-if-unchanged when the page matches the snapshot, so
@@ -48,9 +48,8 @@ def main():
         if not os.path.exists(args.output_docx):
             print(f"Error: DOCX file not found at {args.output_docx}")
             sys.exit(1)
-        converter = DocumentConverter(args.output_docx, args.output_pdf)
         try:
-            converter.convert()
+            render_pdf(args.output_docx, args.output_pdf)
         except Exception as e:
             print(f"Error converting to PDF: {e}")
             sys.exit(1)
@@ -113,9 +112,8 @@ def main():
     # 3. PDF Conversion
     if not args.docx_only:
         print("Step 4: Converting DOCX to PDF...")
-        converter = DocumentConverter(args.output_docx, args.output_pdf)
         try:
-            converter.convert()
+            render_pdf(args.output_docx, args.output_pdf)
         except Exception as e:
             print(f"Error converting to PDF: {e}")
             sys.exit(1)
