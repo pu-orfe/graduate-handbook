@@ -2,7 +2,7 @@
 
 year: 2026
 chair: Amir Ali Ahmadi
-chair_image_sha256: c6b1f038323ae70a0374eddb03350612e0f7e9a78a92bd1f8fc010b5b9393c7c
+chair_image_sha256: f56144029f6d93dd27cc856a255e0c43d9d3ed5dea5f862d1d28b59e323db116
 dgs: Ludovic Tangpi
 dgs_image_sha256: 38bb5d19cdf0d9464abca6fa2c9d886f915e0d4a8c7928b8490ce80708f46744
 
@@ -150,7 +150,7 @@ Please review all ORFE Travel and Expense requirements prior to booking supporte
 - Graduate Student Kitchen is available to both graduate students and faculty in the ORFE department. Please keep this space clean.
 - Graduate Lounge, the open area located on the second floor provides a meeting space for graduate students and faculty. This is a common area shared by all. This space is not to be used for office hours.
 ## Important Contacts
-- Chair, Professor Mete Soner, 609-258-5130
+- Chair, Professor Amir Ali Ahmadi
 - Director of Graduate Studies, Professor Ludovic Tangpi, 609-258-4558
 - Department Manager, Connie Brown, 609-258-5422
 - Graduate Program Administrator, Kimberly Lupinacci, 609-258-4018
