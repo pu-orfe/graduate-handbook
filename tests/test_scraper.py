@@ -82,3 +82,36 @@ def test_scraper_sends_headers_from_env(monkeypatch, tmp_path):
     monkeypatch.delenv("SCRAPER_HEADERS")
     scraper = HandbookScraper(url="https://example.com/handbook", media_dir=str(tmp_path))
     assert set(scraper.headers) == {"User-Agent"}
+
+
+def _cf_encode(address, key=0x4C):
+    return f"{key:02x}" + "".join(f"{ord(c) ^ key:02x}" for c in address)
+
+
+def test_cloudflare_emails_are_decoded():
+    from handbook_generator.scraper import decode_cloudflare_emails
+    enc = _cf_encode("klupinac@princeton.edu")
+    enc_q = _cf_encode("klupinac@princeton.edu?subject=FPO")
+    soup = BeautifulSoup(
+        f'<p>ext 8-4018, <a href="/cdn-cgi/l/email-protection#{enc}">'
+        f'<span class="__cf_email__" data-cfemail="{enc}">[email&#160;protected]</span></a></p>'
+        f'<p><a href="/cdn-cgi/l/email-protection#{enc_q}">submit the request</a></p>',
+        "html.parser",
+    )
+    assert decode_cloudflare_emails(soup) == 3
+    links = soup.find_all("a")
+    assert links[0]["href"] == "mailto:klupinac@princeton.edu"
+    assert links[0].get_text() == "klupinac@princeton.edu"
+    assert links[1]["href"] == "mailto:klupinac@princeton.edu?subject=FPO"
+    assert links[1].get_text() == "submit the request"  # real link text is kept
+    assert "protected" not in soup.get_text()
+
+
+def test_fixture_page_has_no_email_placeholders_after_decoding():
+    import os
+    from handbook_generator.scraper import decode_cloudflare_emails
+    path = os.path.join(os.path.dirname(__file__), "fixtures", "handbook.html")
+    soup = BeautifulSoup(open(path, encoding="utf-8").read(), "html.parser")
+    assert decode_cloudflare_emails(soup) >= 1
+    assert "[email" not in soup.get_text() and "email-protection" not in str(soup)
+    assert "klupinac@princeton.edu" in soup.get_text()

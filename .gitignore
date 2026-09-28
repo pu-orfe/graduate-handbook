@@ -1,5 +1,7 @@
 .venv/
 .env
+# Check findings; turned into GitHub issues by the refresh workflow.
+reports/
 __pycache__/
 .pytest_cache/
 .DS_Store

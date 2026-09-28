@@ -20,6 +20,40 @@ records only what feeds the document: the year, the Chair and DGS names, hashes
 of their photos, and every body block, one per line. A web edit shows up as a
 readable line diff in the refresh PR. Do not edit the snapshot by hand.
 
+## Consistency checks → issues
+
+Every refresh run also checks the page for problems a reader would trip over,
+whether or not the page changed (`handbook_generator/checks.py`):
+
+| Check | Flags |
+|---|---|
+| `roles` | A role naming different people in the profile cards and the Important Contacts list |
+| `contacts` | A contact missing the phone number every other entry has; one number listed for two people |
+| `course_titles` | One course number with different titles in different places |
+| `counted_lists` | "the six core courses" when the Core courses list has five |
+| `dates` | A weekday that does not match its date; a year older than the handbook's previous year |
+| `structure` | Section numbers that skip; a top-level web section missing from the template's contents |
+| `links` | Links that return 404/410 or never answer, missing in-page anchors, malformed email links |
+
+Each finding becomes a GitHub issue labelled `handbook-check`, with the evidence
+quoted. The issue stays open while the problem is on the page, closes itself
+(labelled `auto-resolved`) once a run no longer finds it, and reopens if it comes
+back. An issue you close by hand stays closed. If a check cannot run (e.g. the
+network fails during the link check), its issues are left untouched rather than
+treated as fixed.
+
+Run the checks locally without touching GitHub:
+
+```zsh
+./run.sh --docx-only --findings reports/findings.json --skip-if-unchanged
+.venv/bin/python -m handbook_generator.issues --dry-run reports/findings.json
+```
+
+**Adding a model reviewer later:** write one more function in `checks.py` that
+returns `Finding`s and add it to `CHECKS`; the reporter needs no changes. Keep it
+optional (run only when an `ANTHROPIC_API_KEY` secret is set), have it quote the
+conflicting passages verbatim, and drop any finding whose quotes are not on the page.
+
 ## Layout
 
 - `template/graduate-handbook.docx` – the hand-formatted reference document. The
