@@ -28,7 +28,6 @@ whether or not the page changed (`handbook_generator/checks.py`):
 | Check | Flags |
 |---|---|
 | `roles` | A role naming different people in the profile cards and the Important Contacts list |
-| `contacts` | A contact missing the phone number every other entry has; one number listed for two people |
 | `course_titles` | One course number with different titles in different places |
 | `counted_lists` | "the six core courses" when the Core courses list has five |
 | `dates` | A weekday that does not match its date; a year older than the handbook's previous year |
@@ -38,7 +37,8 @@ whether or not the page changed (`handbook_generator/checks.py`):
 Each finding becomes a GitHub issue labelled `handbook-check`, with the evidence
 quoted. The issue stays open while the problem is on the page, closes itself
 (labelled `auto-resolved`) once a run no longer finds it, and reopens if it comes
-back. An issue you close by hand stays closed. If a check cannot run (e.g. the
+back. An issue you close by hand stays closed. Removing a check closes its
+open issues as "not planned". If a check cannot run (e.g. the
 network fails during the link check), its issues are left untouched rather than
 treated as fixed.
 

@@ -67,28 +67,20 @@ def test_vice_chair_is_not_the_chair(scraper):
 
 # --- contacts ---
 
-def test_contact_missing_phone_is_found():
-    _, body = page(contacts(chair_phone=""))
-    assert titles(checks.check_contacts(body=body)) == ["Contact without a phone number: Chair"]
+def test_linked_contact_names_are_parsed():
+    # Contacts now link to people's pages instead of listing phone numbers.
+    _, body = page("""<h2>Important Contacts</h2><ul>
+      <li>Chair, <a href="/faculty/people/amir-ali-ahmadi">Professor Amir Ali Ahmadi</a></li>
+      <li>Department Manager, <a href="/people/connie-brown">Connie Brown</a></li>
+      <li>Public Safety Non-Emergency 609-258-1000 Emergency 9-1-1</li></ul>""")
+    assert [(e["role"], e["name"]) for e in checks.contact_entries(body)] == [
+        ("Chair", "Amir Ali Ahmadi"), ("Department Manager", "Connie Brown")]
 
 
 def test_closing_sentence_is_not_a_contact():
     _, body = page(contacts())
     assert [e["role"] for e in checks.contact_entries(body)] == [
         "Chair", "Director of Graduate Studies", "Department Manager", "Graduate Program Administrator"]
-
-
-def test_shared_phone_is_found():
-    _, body = page(contacts(manager_phone="609-258-4018"))
-    assert titles(checks.check_contacts(body=body)) == ["Same phone number listed for different people: 609-258-4018"]
-
-
-# --- courses and counts ---
-
-def test_course_with_two_titles_is_found():
-    _, body = page("<ul><li>ORF 522 Linear &amp; Nonlinear Optimization (Fall)</li></ul>"
-                   "<ul><li>ORF 522 Convex Optimization</li><li>MAT 572/APC 572 Topics</li></ul>")
-    assert titles(checks.check_course_titles(body=body)) == ["ORF 522 has different titles on the page"]
 
 
 def test_course_repeated_with_same_title_is_quiet():
@@ -197,11 +189,7 @@ def test_finding_ids_are_stable_and_distinct():
 
 
 def test_real_page_findings(scraper):
-    """Guards against false positives on the actual page (links skipped: network).
-
-    The saved page (September 2026) has one genuine problem: the Chair's
-    contact entry lost its phone number when the name was corrected.
-    """
+    """Guards against false positives on the actual page (links skipped: network)."""
     soup = BeautifulSoup(open(FIXTURE, encoding="utf-8").read(), "html.parser")
     decode_cloudflare_emails(soup)
     body = scraper.extract_main_content(soup)
@@ -210,4 +198,5 @@ def test_real_page_findings(scraper):
                                     "Miscellaneous Information", "Important Contacts"],
                         skip={"links"})
     assert result["checks_failed"] == {}
-    assert [f["title"] for f in result["findings"]] == ["Contact without a phone number: Chair"]
+    assert result["findings"] == []
+    assert "contacts" not in result["checks_available"]

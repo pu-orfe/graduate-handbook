@@ -167,5 +167,5 @@ def test_findings_written_even_when_unchanged(workspace, monkeypatch):
     assert run(monkeypatch, "--skip-if-unchanged", "--findings", "reports/findings.json",
                "--skip-link-check") == EXIT_UNCHANGED
     result = json.loads((root / "reports" / "findings.json").read_text())
-    assert "contacts" in result["checks_run"] and "links" not in result["checks_run"]
+    assert "dates" in result["checks_run"] and "links" not in result["checks_run"]
     assert isinstance(result["findings"], list)

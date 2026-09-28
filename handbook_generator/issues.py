@@ -51,6 +51,7 @@ class Plan:
     update: list = field(default_factory=list)       # (issue, finding)
     reopen: list = field(default_factory=list)       # (issue, finding)
     close: list = field(default_factory=list)        # issues
+    retire: list = field(default_factory=list)       # issues from checks no longer run
     respected: list = field(default_factory=list)    # (issue, finding): closed by a person
     kept: list = field(default_factory=list)         # issues left open, check did not run
 
@@ -70,6 +71,7 @@ def plan(result, issues):
                 by_id[m.group(1)] = issue
     findings = {f["id"]: f for f in result["findings"]}
     ran = set(result["checks_run"])
+    available = result.get("checks_available")
     p = Plan()
     for fid, finding in findings.items():
         issue = by_id.get(fid)
@@ -86,7 +88,9 @@ def plan(result, issues):
         if issue["state"] != "open" or fid in findings:
             continue
         m = CHECK_MARKER.search(issue.get("body") or "")
-        if m and m.group(1) in ran:
+        if m and available is not None and m.group(1) not in available:
+            p.retire.append(issue)
+        elif m and m.group(1) in ran:
             p.close.append(issue)
         else:
             p.kept.append(issue)
@@ -135,6 +139,10 @@ class GitHub:
                 "labels": sorted((_labels(issue) - {AUTO_RESOLVED}) | {LABEL})})
             self._call("POST", f"/issues/{issue['number']}/comments",
                        json={"body": "The handbook check found this problem on the page again, so it has been reopened."})
+        for issue in p.retire:
+            self._call("POST", f"/issues/{issue['number']}/comments",
+                       json={"body": "The check that raised this has been removed, so it will not be checked again. Closing."})
+            self._call("PATCH", f"/issues/{issue['number']}", json={"state": "closed", "state_reason": "not_planned"})
         for issue in p.close:
             self._call("POST", f"/issues/{issue['number']}/comments",
                        json={"body": "The handbook check no longer finds this on the page, so it looks fixed. Closing."})
@@ -152,6 +160,7 @@ def summary(result, p):
     lines += [f"- updated #{i['number']}: {f['title']}" for i, f in p.update]
     lines += [f"- reopened #{i['number']}: {f['title']}" for i, f in p.reopen]
     lines += [f"- closed #{i['number']} (fixed): {i['title']}" for i in p.close]
+    lines += [f"- closed #{i['number']} (check retired): {i['title']}" for i in p.retire]
     lines += [f"- #{i['number']} was closed by a person; not reopening: {f['title']}" for i, f in p.respected]
     return "\n".join(lines)
 
