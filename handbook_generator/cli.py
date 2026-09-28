@@ -6,6 +6,8 @@ from datetime import datetime
 from handbook_generator.scraper import HandbookScraper
 from handbook_generator.builder import HandbookBuilder
 from handbook_generator.converter import DocumentConverter, render_pdf
+import json
+from handbook_generator.checks import run_checks
 from handbook_generator.snapshot import build_snapshot, snapshot_differs, write_snapshot
 
 # Exit code for --skip-if-unchanged when the page matches the snapshot, so
@@ -28,6 +30,8 @@ def main():
     parser.add_argument("--media-dir", default="media", help="Directory to save extracted/scraped media")
     parser.add_argument("--snapshot", default="snapshot/handbook.md", help="Path to the normalized web content snapshot used for change detection")
     parser.add_argument("--skip-if-unchanged", action="store_true", help=f"Exit with code {EXIT_UNCHANGED} without building when the page matches the snapshot")
+    parser.add_argument("--findings", help="Run the consistency checks and write their findings (JSON) here")
+    parser.add_argument("--skip-link-check", action="store_true", help="Skip the network link check in --findings")
     parser.add_argument("--year", help="Year override for cover page (e.g. 2026)")
     parser.add_argument("--docx-only", action="store_true", help="Only generate DOCX, skip PDF conversion")
     parser.add_argument("--pdf-only", action="store_true", help="Only perform DOCX to PDF conversion of existing files")
@@ -91,6 +95,22 @@ def main():
     if not body_content:
         print("Error: Could not extract main body content from page HTML.")
         sys.exit(1)
+
+    # Before the unchanged-exit: links can break while the page stays the same.
+    if args.findings:
+        toc_titles = None
+        if os.path.exists(args.template):
+            import docx
+            from handbook_generator.toc import toc_entries
+            toc_titles = [t for t, _ in toc_entries(docx.Document(args.template))]
+        result = run_checks(soup, body_content, scraper, year=year, toc_titles=toc_titles,
+                            skip={"links"} if args.skip_link_check else ())
+        os.makedirs(os.path.dirname(os.path.abspath(args.findings)), exist_ok=True)
+        with open(args.findings, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        print(f"Checks: {len(result['findings'])} finding(s) written to {args.findings}")
+        for name, err in result["checks_failed"].items():
+            print(f"Warning: check {name} could not run: {err}")
 
     snapshot_text = build_snapshot(scraper_data, body_content, year)
     changed = snapshot_differs(args.snapshot, snapshot_text)

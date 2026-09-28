@@ -28,6 +28,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write # page inconsistencies are filed as issues
   actions: write # keepalive: re-enable this workflow so the schedule survives quiet months
 
 concurrency:
@@ -75,6 +76,7 @@ jobs:
           else
             args=(--skip-if-unchanged)
           fi
+          args+=(--findings reports/findings.json)
           # Actions runs steps with -e; capture the status instead of dying on it.
           status=0
           docker-compose run --rm generate "${args[@]}" || status=$?
@@ -98,6 +100,21 @@ jobs:
               exit "$status"
               ;;
           esac
+
+      # Runs whether or not the page changed: a link can break, or a
+      # finding be fixed, while the rest of the page stays the same.
+      - name: File issues for inconsistencies on the page
+        if: always() && hashFiles('reports/findings.json') != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Handbook checks"
+            echo
+            docker-compose run --rm -T -e GITHUB_TOKEN -e GITHUB_REPOSITORY \
+              --entrypoint python generate -m handbook_generator.issues reports/findings.json
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A PR opened with GITHUB_TOKEN does not trigger other workflows, so CI
       # would never run on it. Run the suite here before proposing anything.

@@ -16,3 +16,4 @@ services:
     volumes:
       - ./output:/app/output
       - ./snapshot:/app/snapshot
+      - ./reports:/app/reports

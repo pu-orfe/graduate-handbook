@@ -156,3 +156,16 @@ def test_page_disagreement_is_reported(workspace, monkeypatch, capsys):
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     assert run(monkeypatch) == 0
     assert "::warning::The page disagrees about the Chair" in capsys.readouterr().out
+
+
+def test_findings_written_even_when_unchanged(workspace, monkeypatch):
+    import json
+    root = workspace["root"]
+    assert run(monkeypatch) == 0
+    # Unchanged page: the build is skipped, but checks still run (links can
+    # break while the page stays the same).
+    assert run(monkeypatch, "--skip-if-unchanged", "--findings", "reports/findings.json",
+               "--skip-link-check") == EXIT_UNCHANGED
+    result = json.loads((root / "reports" / "findings.json").read_text())
+    assert "contacts" in result["checks_run"] and "links" not in result["checks_run"]
+    assert isinstance(result["findings"], list)
